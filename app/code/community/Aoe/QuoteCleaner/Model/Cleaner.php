@@ -9,14 +9,14 @@ class Aoe_QuoteCleaner_Model_Cleaner
      *
      * @param void
      *
-     * @return void
+     * @return array
      */
     public function clean()
     {
 
-        $report = array();
+        $report = [];
 
-        $limit = intval(Mage::getStoreConfig('system/quotecleaner/limit'));
+        $limit = (int)Mage::getStoreConfig('system/quotecleaner/limit');
         $limit = min($limit, 50000);
 
         $writeConnection = Mage::getSingleton('core/resource')->getConnection('core_write');
@@ -26,11 +26,13 @@ class Aoe_QuoteCleaner_Model_Cleaner
         $tableName = $writeConnection->quoteIdentifier($tableName, true);
 
         // customer quotes
-        $olderThan = intval(Mage::getStoreConfig('system/quotecleaner/clean_quoter_older_than'));
+        $olderThan = (int)Mage::getStoreConfig('system/quotecleaner/clean_quoter_older_than');
         $olderThan = max($olderThan, 7);
 
         $startTime                      = time();
-        $sql                            = sprintf('DELETE FROM %s WHERE (NOT ISNULL(customer_id) AND customer_id != 0) AND updated_at < DATE_SUB(Now(), INTERVAL %s DAY) LIMIT %s',
+        $sql                            = sprintf(
+            'DELETE FROM %s WHERE (NOT ISNULL(customer_id) AND customer_id != 0)
+              AND updated_at < DATE_SUB(Now(), INTERVAL %d DAY) LIMIT %d',
             $tableName,
             $olderThan,
             $limit
@@ -39,23 +41,34 @@ class Aoe_QuoteCleaner_Model_Cleaner
         $report['customer']['count']    = $stmt->rowCount();
         $report['customer']['duration'] = time() - $startTime;
         if ($report['customer']['count'] > 0) {
-            Mage::log('[QUOTECLEANER] Cleaning old customer quotes (duration: ' . $report['customer']['duration'] . ', row count: ' . $report['customer']['count'] . ')');
+            Mage::log(sprintf(
+                '[QUOTECLEANER] Cleaning old customer quotes (duration: %d secs, row count: %d)',
+                $report['customer']['duration'],
+                $report['customer']['count']
+            ));
         }
 
         // anonymous quotes$startTime = time();
-        $olderThan = intval(Mage::getStoreConfig('system/quotecleaner/clean_anonymous_quotes_older_than'));
+        $olderThan = (int)Mage::getStoreConfig('system/quotecleaner/clean_anonymous_quotes_older_than');
         $olderThan = max($olderThan, 7);
 
-        $sql                             = sprintf('DELETE FROM %s WHERE (ISNULL(customer_id) OR customer_id = 0) AND updated_at < DATE_SUB(Now(), INTERVAL %s DAY) LIMIT %s',
+        $sql = sprintf(
+            'DELETE FROM %s WHERE (ISNULL(customer_id) OR customer_id = 0)
+              AND updated_at < DATE_SUB(Now(), INTERVAL %d DAY) LIMIT %d',
             $tableName,
             $olderThan,
             $limit
         );
+
         $stmt                            = $writeConnection->query($sql);
         $report['anonymous']['count']    = $stmt->rowCount();
         $report['anonymous']['duration'] = time() - $startTime;
         if ($report['anonymous']['count'] > 0) {
-            Mage::log('[QUOTECLEANER] Cleaning old anonymous quotes (duration: ' . $report['anonymous']['duration'] . ', row count: ' . $report['anonymous']['count'] . ')');
+            Mage::log(sprintf(
+                '[QUOTECLEANER] Cleaning old anonymous quotes (duration: %s secs, row count: %d)',
+                $report['anonymous']['duration'],
+                $report['anonymous']['count']
+            ));
         }
 
         return $report;
